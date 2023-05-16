@@ -24,8 +24,10 @@ sched_cfs = ["multitask", "preempt"]
 default = ["sched_fifo"]
 
 [dependencies]
+axlog = { path = "../axlog" }
 cfg-if = "1.0"
 log = "0.4"
+axalloc = { path = "../axalloc" }
 axhal = { path = "../axhal" }
 axconfig = { path = "../axconfig", optional = true }
 percpu = { path = "../../crates/percpu", optional = true }
@@ -36,8 +38,9 @@ scheduler = { path = "../../crates/scheduler", optional = true }
 timer_list = { path = "../../crates/timer_list", optional = true }
 kernel_guard = { path = "../../crates/kernel_guard" }
 crate_interface = { path = "../../crates/crate_interface" }
-
+riscv = "0.10"
 [dev-dependencies]
+log = "0.4.0"
 rand = "0.8"
 axhal = { path = "../axhal", features = ["fp_simd"] }
 axtask = { path = ".", features = ["test"] }

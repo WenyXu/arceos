@@ -38,7 +38,7 @@
 #![cfg_attr(all(not(test), not(doc)), no_std)]
 #![feature(doc_auto_cfg)]
 
-pub use axlog::{debug, error, info, trace, warn};
+pub use axlog::{ax_print, ax_println, debug, error, info, trace, warn};
 
 #[cfg(not(test))]
 extern crate axruntime;
@@ -54,11 +54,9 @@ pub mod env;
 pub mod io;
 pub mod rand;
 pub mod sync;
-pub mod task;
-pub mod time;
 
-#[cfg(feature = "fs")]
-pub mod fs;
+#[cfg(feature = "multitask")]
+pub mod task;
 
 #[cfg(feature = "net")]
 pub mod net;

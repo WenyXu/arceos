@@ -44,7 +44,7 @@ impl WaitQueue {
             queue: SpinRaw::new(VecDeque::with_capacity(capacity)),
         }
     }
-
+    /// 取消等待
     fn cancel_events(&self, curr: CurrentTask) {
         // A task can be wake up only one events (timer or `notify()`), remove
         // the event from another queue.

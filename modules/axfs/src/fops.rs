@@ -1,4 +1,8 @@
 //! Low-level filesystem operations.
+//! 这个接口定义提供了打开/关闭文件和目录,读写文件,创建/删除文件和目录等操作。使用File和Directory结构表示打开的文件和目录,并通过这两个结构提供具体方法。
+//! OpenOptions用于指定打开文件和目录的选项,如ONLY,CREATE,APPEND等。通过实现From和perm_to_cap,可以从OpenOptions得到访问权限,用于构造WithCap。
+//! WithCap在每次方法调用时带入访问权限,使得对底层节点的操作始终带有正确的权限检查。
+//! 整体来说,这个接口定义提供了统一和安全地访问文件系统的方法。通过权限检查和偏移量维护,可以避免许多低级错误。
 
 use axerrno::{ax_err, ax_err_type, AxResult};
 use axfs_vfs::{VfsError, VfsNodeRef};
@@ -22,16 +26,16 @@ pub type FilePerm = axfs_vfs::VfsNodePerm;
 
 /// An opened file object, with open permissions and a cursor.
 pub struct File {
-    node: WithCap<VfsNodeRef>,
-    is_append: bool,
+    node: WithCap<VfsNodeRef>,      // 包含访问权限的文件节点引用(Inner+Cap,Cap就是三种权限的bitflag)
+    is_append: bool,                // 是否以追加模式打开
     offset: u64,
 }
 
 /// An opened directory object, with open permissions and a cursor for
 /// [`read_dir`](Directory::read_dir).
 pub struct Directory {
-    node: WithCap<VfsNodeRef>,
-    entry_idx: usize,
+    node: WithCap<VfsNodeRef>,      // 包含访问权限的节点引用
+    entry_idx: usize,               // 目录项索引
 }
 
 /// Options and flags which can be used to configure how a file is opened.
@@ -190,7 +194,7 @@ impl File {
     pub fn write(&mut self, buf: &[u8]) -> AxResult<usize> {
         let node = self.node.access(Cap::WRITE)?;
         if self.is_append {
-            self.offset = self.get_attr()?.size();
+            self.offset = self.get_attr()?.size();          // 如果是追加模式, 则会将文件指针移动到文件末尾
         };
         let write_len = node.write_at(self.offset, buf)?;
         self.offset += write_len as u64;
@@ -212,7 +216,7 @@ impl File {
             SeekFrom::Current(off) => self.offset.checked_add_signed(off),
             SeekFrom::End(off) => size.checked_add_signed(off),
         }
-        .ok_or_else(|| ax_err_type!(InvalidInput))?;
+            .ok_or_else(|| ax_err_type!(InvalidInput))?;        // 如果是Some(x), 则返回Ok(x), 否则返回InvalidInput错误
         self.offset = new_offset;
         Ok(new_offset)
     }
@@ -249,7 +253,7 @@ impl Directory {
             entry_idx: 0,
         })
     }
-
+    /// 获取目录项
     fn access_at(&self, path: &str) -> AxResult<Option<&VfsNodeRef>> {
         if path.starts_with('/') {
             Ok(None)

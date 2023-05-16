@@ -54,7 +54,7 @@ impl GlobalAllocator {
     pub fn init(&self, start_vaddr: usize, size: usize) {
         assert!(size > MIN_HEAP_SIZE);
         let init_heap_size = MIN_HEAP_SIZE;
-        self.palloc.lock().init(start_vaddr, size);
+        self.palloc.lock().init(start, size);
         let heap_ptr = self
             .alloc_pages(init_heap_size / PAGE_SIZE, PAGE_SIZE)
             .unwrap();

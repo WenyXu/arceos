@@ -1,12 +1,13 @@
 use core::arch::asm;
 use memory_addr::VirtAddr;
+use riscv::register::sstatus::{self, Sstatus};
 
 include_asm_marcos!();
 
 /// General registers of RISC-V.
 #[allow(missing_docs)]
 #[repr(C)]
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct GeneralRegisters {
     pub ra: usize,
     pub sp: usize,
@@ -43,7 +44,8 @@ pub struct GeneralRegisters {
 
 /// Saved registers when a trap (interrupt or exception) occurs.
 #[repr(C)]
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
+// 类似之前的trap context
 pub struct TrapFrame {
     /// All general registers.
     pub regs: GeneralRegisters,
@@ -113,6 +115,7 @@ impl TaskContext {
 }
 
 #[naked]
+#[no_mangle]
 unsafe extern "C" fn context_switch(_current_task: &mut TaskContext, _next_task: &TaskContext) {
     asm!(
         "

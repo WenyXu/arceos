@@ -57,6 +57,10 @@ members = [
     "modules/axruntime",
     "modules/axsync",
     "modules/axtask",
+    "modules/axsyscall",
+    "modules/axmem",
+    "modules/axprocess",
+    "modules/axfs_os",
 
     "ulib/libax",
 ]

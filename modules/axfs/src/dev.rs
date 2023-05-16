@@ -1,6 +1,6 @@
 use axdriver::prelude::*;
 
-const BLOCK_SIZE: usize = 512;
+const BLOCK_SIZE: usize = 512;  // 块大小为512字节
 
 /// A disk device with a cursor.
 pub struct Disk {
