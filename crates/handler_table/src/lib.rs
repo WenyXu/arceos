@@ -19,6 +19,7 @@
 //! ```
 
 #![no_std]
+#![doc = include_str!("../README.md")]
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 

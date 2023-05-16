@@ -10,24 +10,35 @@ use axio::SeekFrom;
 use capability::{Cap, WithCap};
 use core::fmt;
 
-pub type FileType = axfs_vfs::VfsNodeType;      // 文件类型
-pub type DirEntry = axfs_vfs::VfsDirEntry;      // 目录项
-pub type FileAttr = axfs_vfs::VfsNodeAttr;      // 文件属性
-pub type FilePerm = axfs_vfs::VfsNodePerm;      // 文件权限
+#[cfg(feature = "myfs")]
+pub use crate::dev::Disk;
+#[cfg(feature = "myfs")]
+pub use crate::fs::myfs::MyFileSystemIf;
 
-/// Filesystem operations. 打开的文件
+/// Alias of [`axfs_vfs::VfsNodeType`].
+pub type FileType = axfs_vfs::VfsNodeType;
+/// Alias of [`axfs_vfs::VfsDirEntry`].
+pub type DirEntry = axfs_vfs::VfsDirEntry;
+/// Alias of [`axfs_vfs::VfsNodeAttr`].
+pub type FileAttr = axfs_vfs::VfsNodeAttr;
+/// Alias of [`axfs_vfs::VfsNodePerm`].
+pub type FilePerm = axfs_vfs::VfsNodePerm;
+
+/// An opened file object, with open permissions and a cursor.
 pub struct File {
     node: WithCap<VfsNodeRef>,      // 包含访问权限的文件节点引用(Inner+Cap,Cap就是三种权限的bitflag)
     is_append: bool,                // 是否以追加模式打开
     offset: u64,
 }
 
-/// Directory operations. 打开的目录
+/// An opened directory object, with open permissions and a cursor for
+/// [`read_dir`](Directory::read_dir).
 pub struct Directory {
     node: WithCap<VfsNodeRef>,      // 包含访问权限的节点引用
     entry_idx: usize,               // 目录项索引
 }
 
+/// Options and flags which can be used to configure how a file is opened.
 #[derive(Clone)]
 pub struct OpenOptions {
     // generic
@@ -43,6 +54,7 @@ pub struct OpenOptions {
 }
 
 impl OpenOptions {
+    /// Creates a blank new set of options ready for configuration.
     pub const fn new() -> Self {
         Self {
             // generic
@@ -57,21 +69,27 @@ impl OpenOptions {
             _mode: 0o666,
         }
     }
+    /// Sets the option for read access.
     pub fn read(&mut self, read: bool) {
         self.read = read;
     }
+    /// Sets the option for write access.
     pub fn write(&mut self, write: bool) {
         self.write = write;
     }
+    /// Sets the option for the append mode.
     pub fn append(&mut self, append: bool) {
         self.append = append;
     }
+    /// Sets the option for truncating a previous file.
     pub fn truncate(&mut self, truncate: bool) {
         self.truncate = truncate;
     }
+    /// Sets the option to create a new file, or open it if it already exists.
     pub fn create(&mut self, create: bool) {
         self.create = create;
     }
+    /// Sets the option to create a new file, failing if it already exists.
     pub fn create_new(&mut self, create_new: bool) {
         self.create_new = create_new;
     }
@@ -144,23 +162,35 @@ impl File {
             offset: 0,
         })
     }
-    /// 以相对/绝对路径打开文件
+
+    /// Opens a file at the path relative to the current directory. Returns a
+    /// [`File`] object.
     pub fn open(path: &str, opts: &OpenOptions) -> AxResult<Self> {
         Self::_open_at(None, path, opts)
     }
-    /// 截断文件到指定大小
+
+    /// Truncates the file to the specified size.
     pub fn truncate(&self, size: u64) -> AxResult {
         self.node.access(Cap::WRITE)?.truncate(size)?;
         Ok(())
     }
-    /// 读文件, 返回读取的字节数
+
+    /// Reads the file at the current position. Returns the number of bytes
+    /// read.
+    ///
+    /// After the read, the cursor will be advanced by the number of bytes read.
     pub fn read(&mut self, buf: &mut [u8]) -> AxResult<usize> {
         let node = self.node.access(Cap::READ)?;
         let read_len = node.read_at(self.offset, buf)?;
         self.offset += read_len as u64;
         Ok(read_len)
     }
-    /// 写文件, 返回写入的字节数
+
+    /// Writes the file at the current position. Returns the number of bytes
+    /// written.
+    ///
+    /// After the write, the cursor will be advanced by the number of bytes
+    /// written.
     pub fn write(&mut self, buf: &[u8]) -> AxResult<usize> {
         let node = self.node.access(Cap::WRITE)?;
         if self.is_append {
@@ -170,12 +200,15 @@ impl File {
         self.offset += write_len as u64;
         Ok(write_len)
     }
-    /// 清空缓冲区, 将缓冲区中的数据写入磁盘
+
+    /// Flushes the file, writes all buffered data to the underlying device.
     pub fn flush(&self) -> AxResult {
         self.node.access(Cap::WRITE)?.fsync()?;
         Ok(())
     }
-    /// 设置文件指针位置
+
+    /// Sets the cursor of the file to the specified offset. Returns the new
+    /// position after the seek.
     pub fn seek(&mut self, pos: SeekFrom) -> AxResult<u64> {
         let size = self.get_attr()?.size();
         let new_offset = match pos {
@@ -187,7 +220,8 @@ impl File {
         self.offset = new_offset;
         Ok(new_offset)
     }
-    /// 获取文件属性
+
+    /// Gets the file attributes.
     pub fn get_attr(&self) -> AxResult<FileAttr> {
         self.node.access(Cap::empty())?.get_attr()
     }
@@ -227,35 +261,50 @@ impl Directory {
             Ok(Some(self.node.access(Cap::EXECUTE)?))
         }
     }
-    /// 以相对/绝对路径打开目录
+
+    /// Opens a directory at the path relative to the current directory.
+    /// Returns a [`Directory`] object.
     pub fn open_dir(path: &str, opts: &OpenOptions) -> AxResult<Self> {
         Self::_open_dir_at(None, path, opts)
     }
-    /// 打开目录项
+
+    /// Opens a directory at the path relative to this directory. Returns a
+    /// [`Directory`] object.
     pub fn open_dir_at(&self, path: &str, opts: &OpenOptions) -> AxResult<Self> {
         Self::_open_dir_at(self.access_at(path)?, path, opts)
     }
-    /// 打开目录项的文件
+
+    /// Opens a file at the path relative to this directory. Returns a [`File`]
+    /// object.
     pub fn open_file_at(&self, path: &str, opts: &OpenOptions) -> AxResult<File> {
         File::_open_at(self.access_at(path)?, path, opts)
     }
-    /// 创建文件
+
+    /// Creates an empty file at the path relative to this directory.
     pub fn create_file(&self, path: &str) -> AxResult<VfsNodeRef> {
         crate::root::create_file(self.access_at(path)?, path)
     }
-    /// 创建子目录
+
+    /// Creates an empty directory at the path relative to this directory.
     pub fn create_dir(&self, path: &str) -> AxResult {
         crate::root::create_dir(self.access_at(path)?, path)
     }
-    /// 删除文件
+
+    /// Removes a file at the path relative to this directory.
     pub fn remove_file(&self, path: &str) -> AxResult {
         crate::root::remove_file(self.access_at(path)?, path)
     }
-    /// 删除子目录
+
+    /// Removes a directory at the path relative to this directory.
     pub fn remove_dir(&self, path: &str) -> AxResult {
         crate::root::remove_dir(self.access_at(path)?, path)
     }
-    //获取目录
+
+    /// Reads directory entries starts from the current position into the
+    /// given buffer. Returns the number of entries read.
+    ///
+    /// After the read, the cursor will be advanced by the number of entries
+    /// read.
     pub fn read_dir(&mut self, dirents: &mut [DirEntry]) -> AxResult<usize> {
         let n = self
             .node

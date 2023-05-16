@@ -57,6 +57,7 @@ impl AxRunQueue {
         EXITED_TASKS.lock().push_back(task.clone());
     }
 
+    #[cfg(feature = "irq")]
     pub fn scheduler_timer_tick(&mut self) {
         let curr = crate::current();
         if !curr.is_idle() && self.scheduler.task_tick(curr.as_task_ref()) {
@@ -69,6 +70,11 @@ impl AxRunQueue {
         let curr = crate::current();
         assert!(curr.is_running());
         self.resched_inner(false);
+    }
+
+    pub fn set_priority(&mut self, prio: isize) -> bool {
+        self.scheduler
+            .set_priority(crate::current().as_task_ref(), prio)
     }
 
     #[cfg(feature = "preempt")]
@@ -142,6 +148,7 @@ impl AxRunQueue {
         }
     }
 
+    #[cfg(feature = "irq")]
     pub fn sleep_until(&mut self, deadline: axhal::time::TimeValue) {
         let curr = crate::current();
         debug!("task sleep: {}, deadline={:?}", curr.id_name(), deadline);

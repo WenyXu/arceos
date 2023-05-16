@@ -31,10 +31,6 @@ use crate::{api::FileType, fs};
 static CURRENT_DIR_PATH: Mutex<String> = Mutex::new(String::new());
 static CURRENT_DIR: LazyInit<Mutex<VfsNodeRef>> = LazyInit::new();
 
-#[cfg(feature = "fatfs")]
-type MainFileSystem = fs::fatfs::FatFileSystem;
-
-/// 表示一个挂载点的数据结构
 struct MountPoint {
     path: &'static str,
     fs: Arc<dyn VfsOps>,
@@ -46,7 +42,6 @@ struct RootDirectory {
     mounts: Vec<MountPoint>,
 }
 
-static MAIN_FS: LazyInit<Arc<MainFileSystem>> = LazyInit::new();
 static ROOT_DIR: LazyInit<Arc<RootDirectory>> = LazyInit::new();
 
 impl MountPoint {
@@ -81,8 +76,8 @@ impl RootDirectory {
             return ax_err!(InvalidInput, "mount point already exists");
         }
         // create the mount point in the main filesystem if it does not exist
-        MAIN_FS.root_dir().create(path, FileType::Dir)?;
-        fs.mount(path, MAIN_FS.root_dir().lookup(path)?)?;
+        self.main_fs.root_dir().create(path, FileType::Dir)?;
+        fs.mount(path, self.main_fs.root_dir().lookup(path)?)?;
         self.mounts.push(MountPoint::new(path, fs));
         Ok(())
     }
@@ -178,13 +173,18 @@ impl VfsNodeOps for RootDirectory {
 /// 所以,这个函数会初始化文件系统的根目录,并在上面挂载必要的其它文件系统,为整个文件系统的使用做好准备。
 /// 之后,用户可以通过`ROOT_DIR`来访问根目录,通过`CURRENT_DIR`来访问当前目录。
 pub(crate) fn init_rootfs(disk: crate::dev::Disk) {
-    #[cfg(feature = "fatfs")]
-        let main_fs = fs::fatfs::FatFileSystem::new(disk);
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "myfs")] { // override the default filesystem
+            let main_fs = fs::myfs::new_myfs(disk);
+        } else if #[cfg(feature = "fatfs")] {
+            static FAT_FS: LazyInit<Arc<fs::fatfs::FatFileSystem>> = LazyInit::new();
+            FAT_FS.init_by(Arc::new(fs::fatfs::FatFileSystem::new(disk)));
+            FAT_FS.init();
+            let main_fs = FAT_FS.clone();
+        }
+    }
 
-    MAIN_FS.init_by(Arc::new(main_fs));
-    MAIN_FS.init();
-
-    let mut root_dir = RootDirectory::new(MAIN_FS.clone());
+    let mut root_dir = RootDirectory::new(main_fs);
 
     #[cfg(feature = "devfs")]
     {
@@ -200,6 +200,14 @@ pub(crate) fn init_rootfs(disk: crate::dev::Disk) {
         root_dir
             .mount("/dev", Arc::new(devfs))
             .expect("failed to mount devfs at /dev");
+    }
+
+    #[cfg(feature = "ramfs")]
+    {
+        let ramfs = fs::ramfs::RamFileSystem::new();
+        root_dir
+            .mount("/tmp", Arc::new(ramfs))
+            .expect("failed to mount ramfs at /tmp");
     }
 
     ROOT_DIR.init_by(Arc::new(root_dir));

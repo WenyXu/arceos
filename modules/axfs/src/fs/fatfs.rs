@@ -65,7 +65,6 @@ impl FatFileSystem {
     }
 }
 
-/// 实现VfsNodeOps trait以提供文件相关操作的抽象接口
 impl VfsNodeOps for FileWrapper<'static> {
     axfs_vfs::impl_vfs_non_dir_default! {}
 

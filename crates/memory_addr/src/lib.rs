@@ -2,6 +2,7 @@
 
 #![no_std]
 #![feature(const_mut_refs)]
+#![doc = include_str!("../README.md")]
 
 use core::fmt;
 use core::ops::{Add, AddAssign, Sub, SubAssign};

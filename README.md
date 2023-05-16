@@ -1,6 +1,7 @@
 # ArceOS
 
-[![CI](https://github.com/rcore-os/arceos/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/rcore-os/arceos/actions)
+[![CI](https://github.com/rcore-os/arceos/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/rcore-os/arceos/actions/workflows/build.yml)
+[![CI](https://github.com/rcore-os/arceos/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/rcore-os/arceos/actions/workflows/test.yml)
 [![Docs](https://img.shields.io/badge/docs-pages-green)](https://rcore-os.github.io/arceos/)
 
 An experimental modular operating system (or unikernel) written in Rust.
@@ -11,12 +12,12 @@ ArceOS was inspired a lot by [Unikraft](https://github.com/unikraft/unikraft).
 
 ## Features & TODOs
 
-* [x] Architecture: riscv64, aarch64
-* [x] Platform: QEMU virt riscv64/aarch64
+* [x] Architecture: x86_64, riscv64, aarch64
+* [x] Platform: QEMU pc-q35 (x86_64), virt (riscv64/aarch64)
 * [x] Multi-thread
-* [x] Cooperative/preemptive scheduler
+* [x] FIFO/RR/CFS scheduler
 * [x] VirtIO net/blk/gpu drivers
-* [x] TCP net stack using [smoltcp](https://github.com/smoltcp-rs/smoltcp)
+* [x] TCP/UDP net stack using [smoltcp](https://github.com/smoltcp-rs/smoltcp)
 * [x] Synchronization/Mutex
 * [x] SMP scheduling with single run queue
 * [x] File system
@@ -28,10 +29,10 @@ ArceOS was inspired a lot by [Unikraft](https://github.com/unikraft/unikraft).
 
 Example applications can be found in the [apps/](apps/) directory. All applications must at least depend on the following modules, while other modules are optional:
 
-* [axruntime](modules/axruntime/): Bootstraping from the bare-metal environment, and initialization.
+* [axruntime](modules/axruntime/): Bootstrapping from the bare-metal environment, and initialization.
 * [axhal](modules/axhal/): Hardware abstraction layer, provides unified APIs for cross-platform.
 * [axconfig](modules/axconfig/): Platform constants and kernel parameters, such as physical memory base, kernel load addresses, stack size, etc.
-* [axlog](modules/axlog/): Multi-level log definition and printing.
+* [axlog](modules/axlog/): Multi-level formatted logging.
 
 The currently supported applications (Rust), as well as their dependent modules and features, are shown in the following table:
 
@@ -59,6 +60,27 @@ Install [cargo-binutils](https://github.com/rust-embedded/cargo-binutils) to use
 cargo install cargo-binutils
 ```
 
+#### for build&run C apps
+Install `libclang-dev`:
+
+```bash
+sudo apt install libclang-dev
+```
+
+Download&Install `cross-musl-based toolchains`:
+```
+# download
+wget https://musl.cc/aarch64-linux-musl-cross.tgz
+wget https://musl.cc/riscv64-linux-musl-cross.tgz
+wget https://musl.cc/x86_64-linux-musl-cross.tgz
+# install
+tar zxf aarch64-linux-musl-cross.tgz
+tar zxf riscv64-linux-musl-cross.tgz
+tar zxf x86_64-linux-musl-cross.tgz
+# exec below command in bash OR add below info in ~/.bashrc
+export PATH=`pwd`/x86_64-linux-musl-cross/bin:`pwd`/aarch64-linux-musl-cross/bin:`pwd`/riscv64-linux-musl-cross/bin:$PATH
+```
+
 ### Example apps
 
 ```bash
@@ -66,7 +88,7 @@ cargo install cargo-binutils
 make A=path/to/app ARCH=<arch> LOG=<log> NET=[y|n] FS=[y|n]
 ```
 
-Where `<arch>` should be one of `riscv64`, `aarch64`.
+Where `<arch>` should be one of `riscv64`, `aarch64`，`x86_64`.
 
 `<log>` should be one of `off`, `error`, `warn`, `info`, `debug`, `trace`.
 
@@ -140,96 +162,4 @@ make A=apps/net/httpserver ARCH=aarch64 LOG=info NET=y SMP=4 run
 
 ## Design
 
-![](doc/ArceOS.svg)
-
-
-
-## 进程支持下的应用程序启动
-
-1. 应用程序文件准备：
-
-   若仅有应用程序源码，则需要将准备运行的应用程序与用户库进行联合编译，生成可执行文件。编译方式可以参考`rCore`（[rcore-os/rCore-Tutorial-v3: Let's write an OS which can run on RISC-V in Rust from scratch! (github.com)](https://github.com/rcore-os/rCore-Tutorial-v3)）的`user`库编译方式。
-
-   比赛中测例通过联合编译之后也会生成可执行文件。
-
-   生成流程如下：
-
-   1. 在`rCore`的`user`库下`bin`文件夹新建一个名为`helloworld.rs`的文件
-   2. 在该文件中编写您想运行的应用程序源码。
-   3. 在`user`路径下执行`make build`指令。
-   4. `user/target/riscv64-unknown-none-elf/release/helloworld`即为所生成的可执行文件。
-
-   由于当前未引入文件系统支持，因此采用固定路径链接可执行文件。请将预备执行的可执行文件拷贝在`arceos`的`apps/helloworld`路径下，由于后续不打算在固定路径链接上做拓展，因此写死初始化运行程序的文件名必须为`helloworld`。
-
-   若需要引入多个文件，在将多个文件放入到对应目录下后，还需要修改`axruntime/src/link_app.S`与源码中某些部分。由于不打算后续扩展，因此当前写死仅支持两个文件同时链接加载。初始化应用为`helloworld`，另一个应用为`second`。
-
-2. 启动应用程序运行指令：
-
-   在根目录下运行
-
-   ```rust
-   make A=apps/helloworld ARCH=riscv64 LOG=info SMP=1 run
-   ```
-
-   即可启动任务调度器，反复检查当前是否有可执行的任务。在执行完所有任务之后，任务调度器不会退出，而是继续循环，类似于`shell`的执行逻辑。
-
-3. 若想运行其他内容的应用程序，请在原先`helloworld`的源码上进行修改，引入其他系统调用之后再次编译生成可执行文件并且拷贝到对应目录。
-4. 当前由于未支持文件系统，上述操作略显冗余。之后会引入文件系统支持，使得流程更为简便。
-
-
-
-## modules 关系图
-
-```mermaid
-graph TD;
-axsync-->axdisplay
-axdriver-->axdisplay
-
-axhal-->axdriver
-axalloc-->axdriver
-axconfig-->axdriver
-
-axdriver-->axfs
-axsync-->axfs
-axtask-.dev.->axfs
-
-axtask-->axfs_os
-axfs-->axfs_os
-
-axconfig-->axhal
-axalloc-->axhal
-axlog-->axhal
-
-axhal-->axnet
-axsync-->axnet
-axtask-->axnet
-axdriver-->axnet
-
-axalloc-->axruntime
-axconfig-->axruntime
-axdriver-->axruntime
-axhal-->axruntime
-axlog-->axruntime
-axnet-->axruntime
-axdisplay-->axruntime
-axtask-->axruntime
-axprocess-->axruntime
-axtask-->axsync
-axtask-->axprocess
-axfs_os-->axprocess
-axhal-->axprocess
-
-axprocess-->axsyscall
-axsyscall-->axruntime
-axalloc-->axtask
-axhal-->axtask
-axconfig-->axtask
-axlog-->axtask
-
-axhal-->axmem
-axalloc-->axmem
-
-axmem-->axprocess
-
-```
-
+![](doc/figures/ArceOS.svg)
