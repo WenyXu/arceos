@@ -18,6 +18,7 @@ user = ["axhal/user"]
 sched_fifo = ["multitask"]
 sched_rr = ["multitask", "preempt"]
 default = ["sched_fifo", "user", "multitask", "paging"]
+experimental_monolithic = []
 
 [dependencies]
 axlog = { path = "../axlog" }

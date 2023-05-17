@@ -13,8 +13,8 @@ use crate::test::finish_one_test;
 use axmem::memory_set::MemorySet;
 use axtask::{
     current,
-    task::{CurrentTask, TaskInner},
-    AxTaskRef, TaskId, IDLE_TASK, RUN_QUEUE,
+    task::experimental_task::{AxTaskRef, CurrentTask, TaskId, TaskInner},
+    IDLE_TASK, RUN_QUEUE,
 };
 use spinlock::SpinNoIrq;
 

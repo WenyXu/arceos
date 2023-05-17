@@ -8,7 +8,8 @@ authors = ["Youjie Zheng <zyj578335934@gmail.com>"]
 
 [features]
 test = []
-default = ["test"]
+default = ["test", "experimental_monolithic"]
+experimental_monolithic = ["axtask/experimental_monolithic"]
 
 [dependencies]
 spinlock = { path = "../../crates/spinlock" }
@@ -16,7 +17,7 @@ axtask = { path = "../axtask" }
 axhal = { path = "../axhal" }
 axlog = { path = "../axlog" }
 axmem = { path = "../axmem" }
-axconfig = {path = "../axconfig"}
+axconfig = { path = "../axconfig" }
 axfs_os = { path = "../axfs_os" }
 riscv = "0.10"
 bitflags = "= 2.1.0"

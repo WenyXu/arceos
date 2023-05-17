@@ -36,7 +36,12 @@ extern crate alloc;
 use alloc::sync::Arc;
 
 pub use self::run_queue::{AxRunQueue, RUN_QUEUE, IDLE_TASK};
+#[cfg(not(feature = "experimental_monolithic"))]
 use self::task::{CurrentTask, TaskInner};
+#[cfg(feature = "experimental_monolithic")]{
+use self::task::experimental_task::{CurrentTask, TaskInner};
+pub use crate::run_queue::AxRunQueue;
+}
 
 pub use self::task::TaskId;
 pub use self::wait_queue::WaitQueue;
@@ -52,7 +57,6 @@ cfg_if::cfg_if! {
     }
 }
 
-pub type AxTaskRef = Arc<AxTask>;
 
 pub fn current_may_uninit() -> Option<CurrentTask> {
     CurrentTask::try_get()
@@ -65,7 +69,10 @@ pub fn current() -> CurrentTask {
 pub fn init_scheduler() {
     info!("Initialize scheduling...");
 
+    #[cfg(not(feature = "experimental_monolithic"))]
     self::run_queue::init();
+    #[cfg(feature = "experimental_monolithic")]
+    self::run_queue::experimental_task::init();
     self::timers::init();
 
     if cfg!(feature = "sched_fifo") {
@@ -89,7 +96,10 @@ pub fn spawn<F>(f: F)
 where
     F: FnOnce() + Send + 'static,
 {
+    #[cfg(feature = "experimental_monolithic")]
     let task = TaskInner::new(f, "", axconfig::TASK_STACK_SIZE, current().get_process_id(), 0);
+    #[cfg(not(feature = "experimental_monolithic"))]
+    let task = TaskInner::new(f, "", axconfig::TASK_STACK_SIZE);
     RUN_QUEUE.lock().add_task(task);
 }
 
